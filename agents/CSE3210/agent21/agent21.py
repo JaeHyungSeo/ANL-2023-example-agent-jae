@@ -109,9 +109,8 @@ class TemplateAgent(DefaultParty):
             self.logger.log(logging.WARNING, "Ignoring unknown info " + str(data))
 
     def getCapabilities(self) -> Capabilities:
-        """MUST BE IMPLEMENTED
+        """
         Method to indicate to the protocol what the capabilities of this agent are.
-        Leave it as is for the ANL 2022 competition
 
         Returns:
             Capabilities: Capabilities representation class
@@ -131,13 +130,7 @@ class TemplateAgent(DefaultParty):
 
     # give a description of your agent
     def getDescription(self) -> str:
-        """MUST BE IMPLEMENTED
-        Returns a description of your agent. 1 or 2 sentences.
-
-        Returns:
-            str: Agent description
-        """
-        return "Template agent for the ANL 2022 competition"
+        return 'Group 21\'s superior agent'
 
     def opponent_action(self, action):
         """Process an action that was received from the opponent.
