@@ -146,8 +146,11 @@ class Group21Agent(DefaultParty):
                 # use reservation value if there is one 
                 min_util_val = float(profile.getUtility(profile.getReservationBid()))
             else: 
-                # use the latest bid offer 
-                min_util_val = float(profile.getUtility(self._my_actions[-1].getBid()))
+                # use the average between the latest bid offer from the opponent (assumed to be the best bid they can offer)
+                # and our last bid 
+                min_util_val = float(
+                    profile.getUtility(self._lastReceivedBid) + profile.getUtility(self._my_actions[-1].getBid())
+                ) / 2
             # determine threshold for acceptance 
             acc_thresh = min_util_val + (1 - progress) * (max_util_val - min_util_val)
 
