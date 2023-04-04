@@ -1,4 +1,4 @@
-import logging
+import logging, time 
 from random import randint
 import traceback
 from typing import cast, Dict, List, Set, Collection
@@ -42,6 +42,15 @@ class Group21Agent(DefaultParty):
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
         self._lastReceivedBid: Bid = None
+
+        # store history of our agent's actions (offers). 
+        self._my_actions = []
+
+    # get progress time normalized from 0 to 1
+    def _get_progress(self):    
+        elapsed    = (time.time() - self._progress.getStart().timestamp()) * 1000
+        time_limit = self._progress.getDuration()
+        return elapsed / time_limit
 
     # Override
     def notifyChange(self, info: Inform):
@@ -107,16 +116,48 @@ class Group21Agent(DefaultParty):
                 if self._isGood(bid):
                     break
             action = Offer(self._me, bid)
+            # store action. Do not remove (tan wrote this)
+            self._my_actions.append(action)
         self.getConnection().send(action)
 
     # TODO: acceptance strategy
     def _isGood(self, bid: Bid) -> bool:
+        # base case 
         if bid == None:
             return False
+
+        # get our agent profile
         profile = self._profile.getProfile()
-        if isinstance(profile, UtilitySpace):
-            return profile.getUtility(bid) > 0.6
-        raise Exception("Can not handle this type of profile")
+
+        # progress (normalized from 0 to 1)
+        progress = self._get_progress()
+
+        # oppononent's bid utility value
+        bid_util = float(profile.getUtility(bid))
+
+        # init default threshold 
+        acc_thresh = 0.9
+        # compute the minimum utility value mapped from reservation to the first utility based on time 
+        if len(self._my_actions) > 0:
+            # best utility value (first offer)
+            max_util_val = float(profile.getUtility(self._my_actions[0].getBid()))
+            # min acceptable utility
+            if profile.getReservationBid() is not None:
+                # use reservation value if there is one 
+                min_util_val = float(profile.getUtility(profile.getReservationBid()))
+            else: 
+                # use the latest bid offer 
+                min_util_val = float(profile.getUtility(self._my_actions[-1].getBid()))
+            # determine threshold for acceptance 
+            acc_thresh = min_util_val + (1 - progress) * (max_util_val - min_util_val)
+
+        # only accept the offer when ALL conditions are satisfied
+        try:
+            return all(
+                [bid_util >= acc_thresh]
+            )
+        except:
+            raise Exception("Can not handle this type of profile")
 
     def _getRandomBid(self, domain: Domain) -> Bid:
         allBids = AllBidsList(domain)
