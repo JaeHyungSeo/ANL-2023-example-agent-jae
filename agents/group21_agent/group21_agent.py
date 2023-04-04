@@ -31,6 +31,7 @@ from geniusweb.profileconnection.ProfileConnectionFactory import (
 from geniusweb.progress.ProgressRounds import ProgressRounds
 from geniusweb.utils import val
 
+
 class Group21Agent(DefaultParty):
     """
     Offers random bids until a bid with sufficient utility is offered.
@@ -61,6 +62,7 @@ class Group21Agent(DefaultParty):
             if isinstance(action, Offer):
                 self._lastReceivedBid = cast(Offer, action).getBid()
         elif isinstance(info, YourTurn):
+            self._myTurn()
             if isinstance(self._progress, ProgressRounds):
                 self._progress = self._progress.advance()
         elif isinstance(info, Finished):
@@ -96,11 +98,10 @@ class Group21Agent(DefaultParty):
             self._profile = None
 
     def _myTurn(self):
-        # TODO: acceptance strategy
         if self._isGood(self._lastReceivedBid):
             action = Accept(self._me, self._lastReceivedBid)
-        # TODO: bidding strategy
         else:
+            # TODO: bidding stratgy
             for _attempt in range(20):
                 bid = self._getRandomBid(self._profile.getProfile().getDomain())
                 if self._isGood(bid):
