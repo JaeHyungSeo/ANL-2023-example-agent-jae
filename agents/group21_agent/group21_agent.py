@@ -2,6 +2,7 @@ import logging
 from random import randint
 from time import time
 from typing import cast
+import numpy as np
 
 from geniusweb.actions.Accept import Accept
 from geniusweb.actions.Action import Action
@@ -15,6 +16,9 @@ from geniusweb.inform.Settings import Settings
 from geniusweb.inform.YourTurn import YourTurn
 from geniusweb.issuevalue.Bid import Bid
 from geniusweb.issuevalue.Domain import Domain
+from geniusweb.issuevalue.Value import Value
+from geniusweb.issuevalue.DiscreteValue import DiscreteValue
+from geniusweb.issuevalue.NumberValue import NumberValue
 from geniusweb.party.Capabilities import Capabilities
 from geniusweb.party.DefaultParty import DefaultParty
 from geniusweb.profile.utilityspace.LinearAdditiveUtilitySpace import (
@@ -28,6 +32,45 @@ from geniusweb.references.Parameters import Parameters
 from tudelft_utilities_logging.ReportToLogger import ReportToLogger
 
 from .utils.opponent_model import OpponentModel
+
+
+def extract_number_issues(bid: Bid):
+    """
+    Extracts numeric issue values from the given bid.
+    """
+    numeric_vals = []
+    for iss_val in bid.getIssueValues().values():
+        if iss_val is not NumberValue:
+            continue
+        numeric_vals.append(float(iss_val.getValue()))
+    return np.array(numeric_vals)
+
+
+def simulate_bid(bid: Bid, issue_deltas, steps, discount_factor=0.8):
+    """
+    Predicts the opponents bid X steps into the future.
+    """
+    future_issue_vals = extract_number_issues(bid)
+    for i in range(steps):
+        future_issue_vals += issue_deltas * (discount_factor ** (i + 1))
+
+    # construct predicted bid
+    predicted_issues_map = bid.getIssueValues()
+    i = 0
+    for issue in predicted_issues_map.keys():
+        iss_val = predicted_issues_map[issue]
+        if iss_val is not NumberValue:
+            continue
+        predicted_issues_map[issue] = NumberValue(future_issue_vals[i])
+        i += 1
+    return Bid(predicted_issues_map)
+
+
+def has_numeric_issues(bid: Bid):
+    """
+    Checks whether the given bid has any numeric issues.
+    """
+    return len(extract_number_issues(bid) > 0)
 
 
 class Group21Agent(DefaultParty):
@@ -195,7 +238,9 @@ class Group21Agent(DefaultParty):
         """
         if bid is None:
             return False
+
         conditions = [
+            self.profile.getUtility(bid) > 0.8,
             self.accept_condition_derivative(bid),
             self.accept_condition_time(bid),
         ]
@@ -206,7 +251,46 @@ class Group21Agent(DefaultParty):
         Checks whether the given bid should be accepted based on the derivative condition.
 
         """
-        return self.profile.getUtility(bid) > 0.8
+        # ensure that the bid has any numeric issues
+        if not has_numeric_issues(bid):
+            return True
+
+        # ensure there are at last 2 past bids
+        # ! the current bid is already in the list of past bids
+        opp_model = self.opponent_model
+        if len(opp_model.offers) < 2:
+            return False
+
+        # estimate issue deltas
+        issue_deltas = []
+        last_issue_vals = None
+        for past_bid in opp_model.offers:
+            # get numeric issue values from bid
+            print(f"Issues: {past_bid.getIssueValues()}")
+            issue_values = extract_number_issues(past_bid)
+            print(f"Issue vals: {issue_values}")
+
+            # skip if first in the list
+            if last_issue_vals is None:
+                last_issue_vals = issue_values
+                continue
+
+            # calculate deltas
+            deltas = issue_values - last_issue_vals
+            issue_deltas.append(deltas)
+            last_issue_vals = issue_values
+
+        # simulate next bid
+        last_deltas = issue_deltas[len(issue_deltas) - 1]
+
+        # construct predicted bid
+        predicted_bid = simulate_bid(bid, last_deltas, 5)
+
+        # get utility of current bid
+        curr_utility = self.profile.getUtility(bid)
+        pred_utility = self.profile.getUtility(predicted_bid)
+
+        return curr_utility > pred_utility
 
     def accept_condition_time(self, bid: Bid):
         """
