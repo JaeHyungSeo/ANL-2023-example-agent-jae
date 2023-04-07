@@ -70,7 +70,7 @@ def has_numeric_issues(bid: Bid):
     """
     Checks whether the given bid has any numeric issues.
     """
-    return len(extract_number_issues(bid) > 0)
+    return len(extract_number_issues(bid)) > 0
 
 
 class Group21Agent(DefaultParty):
