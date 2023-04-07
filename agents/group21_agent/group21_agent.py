@@ -252,7 +252,6 @@ class Group21Agent(DefaultParty):
             return False
 
         conditions = [
-            self.profile.getUtility(bid) > 0.8,
             self.accept_condition_derivative(bid),
             self.accept_condition_time(bid),
         ]
