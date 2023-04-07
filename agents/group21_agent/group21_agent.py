@@ -95,6 +95,15 @@ class Group21Agent(DefaultParty):
         self.opponent_model: OpponentModel = None
         self.logger.log(logging.INFO, "party is initialized")
 
+        # store history of our agent's actions (offers). 
+        self._my_actions = []
+
+    # get progress time normalized from 0 to 1
+    def _get_progress(self):    
+        elapsed    = (time() - self.progress.getStart().timestamp()) * 1000
+        time_limit = self.progress.getDuration()
+        return elapsed / time_limit
+
     def notifyChange(self, data: Inform):
         """MUST BE IMPLEMENTED
         This is the entry point of all interaction with your agent after is has been initialised.
@@ -170,6 +179,9 @@ class Group21Agent(DefaultParty):
         Args:
             action (Action): action of this agent
         """
+        # store action
+        self._my_actions.append(action)
+        # send action
         self.getConnection().send(action)
 
     # give a description of your agent
@@ -295,12 +307,31 @@ class Group21Agent(DefaultParty):
     def accept_condition_time(self, bid: Bid):
         """
         Checks whether the given bid should be accepted based on the time condition.
-        TODO: Implement this correctly
         """
-        # progress of the negotiation session between 0 and 1 (1 is deadline)
-        progress = self.progress.get(time() * 1000)
-
-        return progress > 0.95
+        # progress (normalized from 0 to 1 with 1 is deadline)
+        progress = self._get_progress()
+        # oppononent's bid utility value
+        bid_util = float(self.profile.getUtility(bid))
+        # init default threshold 
+        acc_thresh = 0.9
+        # compute the minimum utility value mapped from reservation to the first utility based on time 
+        if len(self._my_actions) > 0:
+            # best utility value (first offer)
+            max_util_val = float(self.profile.getUtility(self._my_actions[0].getBid()))
+            # min acceptable utility
+            if self.profile.getReservationBid() is not None:
+                # use reservation value if there is one 
+                min_util_val = float(self.profile.getUtility(self.profile.getReservationBid()))
+            else: 
+                # use the average between the latest bid offer from the opponent (assumed to be the best bid they can offer)
+                # and our last bid 
+                min_util_val = float(
+                    self.profile.getUtility(self.last_received_bid) + self.profile.getUtility(self._my_actions[-1].getBid())
+                ) / 2
+            # determine threshold for acceptance 
+            acc_thresh = min_util_val + (1 - progress) * (max_util_val - min_util_val)
+        # result
+        return bid_util >= acc_thresh
 
     def find_bid(self) -> Bid:
         # compose a list of all possible bids
