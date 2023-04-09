@@ -20,7 +20,7 @@ from geniusweb.issuevalue.Value import Value
 from geniusweb.issuevalue.DiscreteValue import DiscreteValue
 from geniusweb.issuevalue.NumberValue import NumberValue
 from geniusweb.party.Capabilities import Capabilities
-from geniusweb.party.DefaultParty import DefaultParty
+from geniusweb.party.DefaultParty import DefaultParty   
 from geniusweb.profile.utilityspace.LinearAdditiveUtilitySpace import (
     LinearAdditiveUtilitySpace,
 )
@@ -362,6 +362,28 @@ class Group21Agent(DefaultParty):
         Returns:
             float: score
         """
+        # take last 4 offers by opponent
+        opp_model = self.opponent_model
+        opp_last_four_offers = opp_model.offers[-4:]
+
+        slope = 0
+        # loop through the list of 4 offers
+        for i in range(len(opp_last_four_offers)):
+            if i+1 > len(opp_last_four_offers):
+                continue
+            # we need to decide what to be x and y here we only have two values x1 and x2; this cant produce slope
+            # m = (y1 - y2) / (x1-x2)
+            m = (opp_last_four_offers[i+1] - opp_last_four_offers[i]) / (opp_last_four_offers[i] - opp_last_four_offers[i+1])
+            slope += m
+        # get the average of these slopes
+        slope /= 6
+        # multiply by random factor
+        rFactor = random.uniform(0.03,0.07)
+        slope = slope * rFactor
+        # extraportation
+        #res = slope + (x - x1)/(x2 - x1) * x * (y2 - y1)
+
+
         progress = self.progress.get(time() * 1000)
 
         our_utility = float(self.profile.getUtility(bid))
