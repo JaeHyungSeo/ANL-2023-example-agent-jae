@@ -360,7 +360,7 @@ class Group21Agent(DefaultParty):
         # Extend our last bid along the shot vector
         # TODO: double check sin and cos shouldn't be swapped
         last = self.utility_pt(self.bids[-1])
-        next = np.clip((last[0] + length * math.cos(angle), last[1] + length * math.sin(angle)), 0., 1.)
+        next = np.clip((last[0] + length * math.sin(angle), last[1] + length * math.cos(angle)), 0., 1.)
         return next
 
     def find_bid(self) -> Bid:
