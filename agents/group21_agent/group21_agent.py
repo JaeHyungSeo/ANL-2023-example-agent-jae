@@ -340,19 +340,17 @@ class Group21Agent(DefaultParty):
         """
         Returns the utility of the given bid for us and the opponent.
         """
-        return (self.profile.getUtility(bid), self.opponent_model.get_predicted_utility(bid))
+        return (float(self.profile.getUtility(bid)), self.opponent_model.get_predicted_utility(bid))
 
-    def find_optimal_bid(self, offers=4) -> Bid:
+    def find_optimal_utility(self, offers=4) -> Bid:
         # Get scores of the last x offers from the opponent
         pts = [self.utility_pt(bid) for bid in self.opponent_model.offers[-offers:]]
 
         # Calculate the shot vector
         # Take all unique offer combinations of the four offers and calculate deltas
         # y (opponent) and x (ours) axis for each offer combination
-        combinations = itertools.combinations(pts, 2)
-        xs = [next[0] - prev[0] for (prev, next) in combinations]
-        ys = [next[1] - prev[1] for (prev, next) in combinations]
-
+        xs = [next[0] - prev[0] for prev, next in itertools.combinations(pts, 2)]
+        ys = [next[1] - prev[1] for prev, next in itertools.combinations(pts, 2)]
         # Calculate the shooting angle as the average of the angles between the offer combinations
         angle = math.atan2(sum(ys), sum(xs))
 
@@ -361,7 +359,9 @@ class Group21Agent(DefaultParty):
         
         # Extend our last bid along the shot vector
         # TODO: double check sin and cos shouldn't be swapped
-        return self.utility_pt(self.bids[-1]) + (length * math.cos(angle), length * math.sin(angle))
+        last = self.utility_pt(self.bids[-1])
+        next = np.clip((last[0] + length * math.cos(angle), last[1] + length * math.sin(angle)), 0., 1.)
+        return next
 
     def find_bid(self) -> Bid:
         # Compose a list of all possible bids
@@ -374,25 +374,28 @@ class Group21Agent(DefaultParty):
         
         # If we don't have enough data, pick a bid according to the default strategy
         # Otherwise, use the derivative strategy
-        if len(self.opponent_model.offers) < 3:
-            idx = np.argmax([self.score_bid_default(bid) for bid in bids])
+        if self.opponent_model is None or len(self.opponent_model.offers) < 3:
+            scores = [self.score_bid_default(bid) for bid in bids]
+            idx = np.argmax(scores)
             
         else:
-            idx = np.argmin([self.score_bid_derivative(bid, self.find_optimal_bid()) for bid in bids])
-        
+            optimal_utility = self.find_optimal_utility()
+            scores = [self.score_bid_derivative(bid, optimal_utility) for bid in bids]
+            idx = np.argmin(scores)
+
         return bids[idx]
 
-    def score_bid_derivative(self, bid: Bid, optimal_bid: Bid) -> float:
+    def score_bid_derivative(self, bid: Bid, optimal_utility: tuple[float]) -> float:
         """Calculate a derivative score for a bid
         
         Args:
             bid (Bid): Bid to score
-            optimal_bid (Bid): Optimal bid to shoot for
+            optimal_utility (Bid): Optimal utility to shoot for
 
         Returns:
             float: score - the distance between the bids. Smaller is better.
         """
-        y, x = self.utility_pt(bid) - self.utility_pt(optimal_bid)
+        y, x = self.utility_pt(bid) - optimal_utility
         return math.sqrt(x ** 2 + y ** 2)
 
     def score_bid_default(self, bid: Bid, alpha: float = 0.95, eps: float = 0.1) -> float:
