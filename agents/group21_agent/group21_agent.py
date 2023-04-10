@@ -342,7 +342,7 @@ class Group21Agent(DefaultParty):
         """
         return (float(self.profile.getUtility(bid)), self.opponent_model.get_predicted_utility(bid))
 
-    def find_optimal_utility(self, offers=4) -> Bid:
+    def find_optimal_utility(self, offers=4, beta=.003, eta=.07) -> Bid:
         # Get scores of the last x offers from the opponent
         pts = [self.utility_pt(bid) for bid in self.opponent_model.offers[-offers:]]
 
@@ -352,10 +352,10 @@ class Group21Agent(DefaultParty):
         xs = [next[0] - prev[0] for prev, next in itertools.combinations(pts, 2)]
         ys = [next[1] - prev[1] for prev, next in itertools.combinations(pts, 2)]
         # Calculate the shooting angle as the average of the angles between the offer combinations
-        angle = math.atan2(sum(ys), sum(xs))
+        angle = math.atan2(sum(ys), sum(xs)) + random.uniform(0, beta)
 
         # Calculate the shooting length as the average of the distances between the offer combinations
-        length = np.average([math.sqrt(x ** 2 + y ** 2) for (x, y) in zip(xs, ys)])
+        length = np.average([math.sqrt(x ** 2 + y ** 2) for (x, y) in zip(xs, ys)]) * eta
         
         # Extend our last bid along the shot vector
         # TODO: double check sin and cos shouldn't be swapped
