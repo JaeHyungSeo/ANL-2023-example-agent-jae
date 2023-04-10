@@ -8,7 +8,7 @@ from geniusweb.issuevalue.Value import Value
 
 class OpponentModel:
     def __init__(self, domain: Domain):
-        self.offers = []
+        self.offers: list[Bid] = []
         self.domain = domain
 
         self.issue_estimators = {

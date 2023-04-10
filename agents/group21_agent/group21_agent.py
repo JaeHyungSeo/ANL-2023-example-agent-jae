@@ -1,8 +1,10 @@
 import logging
-from random import randint
+import random
 from time import time
 from typing import cast
 import numpy as np
+import itertools
+import math
 
 from geniusweb.actions.Accept import Accept
 from geniusweb.actions.Action import Action
@@ -90,6 +92,7 @@ class Group21Agent(DefaultParty):
         self.other: str = None
         self.settings: Settings = None
         self.storage_dir: str = None
+        self.bids: list[Bid] = []
 
         self.last_received_bid: Bid = None
         self.opponent_model: OpponentModel = None
@@ -225,6 +228,7 @@ class Group21Agent(DefaultParty):
             # if not, find a bid to propose as counter offer
             bid = self.find_bid()
             action = Offer(self.me, bid)
+            self.bids.append(bid)
 
         # send the action
         self.send_action(action)
@@ -331,26 +335,68 @@ class Group21Agent(DefaultParty):
             acc_thresh = min_util_val + (1 - progress) * (max_util_val - min_util_val)
         # result
         return bid_util >= acc_thresh
+    
+    def utility_pt(self, bid: Bid) -> tuple[float]:
+        """
+        Returns the utility of the given bid for us and the opponent.
+        """
+        return (self.profile.getUtility(bid), self.opponent_model.get_predicted_utility(bid))
+
+    def find_optimal_bid(self, offers=4) -> Bid:
+        # Get scores of the last x offers from the opponent
+        pts = [self.utility_pt(bid) for bid in self.opponent_model.offers[-offers:]]
+
+        # Calculate the shot vector
+        # Take all unique offer combinations of the four offers and calculate deltas
+        # y (opponent) and x (ours) axis for each offer combination
+        combinations = itertools.combinations(pts, 2)
+        xs = [next[0] - prev[0] for (prev, next) in combinations]
+        ys = [next[1] - prev[1] for (prev, next) in combinations]
+
+        # Calculate the shooting angle as the average of the angles between the offer combinations
+        angle = math.atan2(sum(ys), sum(xs))
+
+        # Calculate the shooting length as the average of the distances between the offer combinations
+        length = np.average([math.sqrt(x ** 2 + y ** 2) for (x, y) in zip(xs, ys)])
+        
+        # Extend our last bid along the shot vector
+        # TODO: double check sin and cos shouldn't be swapped
+        return self.utility_pt(self.bids[-1]) + (length * math.cos(angle), length * math.sin(angle))
 
     def find_bid(self) -> Bid:
-        # compose a list of all possible bids
-        domain = self.profile.getDomain()
-        all_bids = AllBidsList(domain)
+        # Compose a list of all possible bids
+        all_bids = AllBidsList(self.profile.getDomain())
 
-        best_bid_score = 0.0
-        best_bid = None
+        # Extend our current offer along the shot vector
+        # Pick 1000 random bids and choose the one closest 
+        bids = [all_bids.get(random.randint(0, all_bids.size() - 1)) 
+                for _ in range(1000)]
+        
+        # If we don't have enough data, pick a bid according to the default strategy
+        # Otherwise, use the derivative strategy
+        if len(self.opponent_model.offers) < 3:
+            idx = np.argmax([self.score_bid_default(bid) for bid in bids])
+            
+        else:
+            idx = np.argmin([self.score_bid_derivative(bid, self.find_optimal_bid()) for bid in bids])
+        
+        return bids[idx]
 
-        # take 500 attempts to find a bid according to a heuristic score
-        for _ in range(500):
-            bid = all_bids.get(randint(0, all_bids.size() - 1))
-            bid_score = self.score_bid(bid)
-            if bid_score > best_bid_score:
-                best_bid_score, best_bid = bid_score, bid
+    def score_bid_derivative(self, bid: Bid, optimal_bid: Bid) -> float:
+        """Calculate a derivative score for a bid
+        
+        Args:
+            bid (Bid): Bid to score
+            optimal_bid (Bid): Optimal bid to shoot for
 
-        return best_bid
+        Returns:
+            float: score - the distance between the bids. Smaller is better.
+        """
+        y, x = self.utility_pt(bid) - self.utility_pt(optimal_bid)
+        return math.sqrt(x ** 2 + y ** 2)
 
-    def score_bid(self, bid: Bid, alpha: float = 0.95, eps: float = 0.1) -> float:
-        """Calculate heuristic score for a bid
+    def score_bid_default(self, bid: Bid, alpha: float = 0.95, eps: float = 0.1) -> float:
+        """Calculate a default heuristic score for a bid
 
         Args:
             bid (Bid): Bid to score
@@ -362,28 +408,6 @@ class Group21Agent(DefaultParty):
         Returns:
             float: score
         """
-        # take last 4 offers by opponent
-        opp_model = self.opponent_model
-        opp_last_four_offers = opp_model.offers[-4:]
-
-        slope = 0
-        # loop through the list of 4 offers
-        for i in range(len(opp_last_four_offers)):
-            if i+1 > len(opp_last_four_offers):
-                continue
-            # we need to decide what to be x and y here we only have two values x1 and x2; this cant produce slope
-            # m = (y1 - y2) / (x1-x2)
-            m = (opp_last_four_offers[i+1] - opp_last_four_offers[i]) / (opp_last_four_offers[i] - opp_last_four_offers[i+1])
-            slope += m
-        # get the average of these slopes
-        slope /= 6
-        # multiply by random factor
-        rFactor = random.uniform(0.03,0.07)
-        slope = slope * rFactor
-        # extraportation
-        #res = slope + (x - x1)/(x2 - x1) * x * (y2 - y1)
-
-
         progress = self.progress.get(time() * 1000)
 
         our_utility = float(self.profile.getUtility(bid))
