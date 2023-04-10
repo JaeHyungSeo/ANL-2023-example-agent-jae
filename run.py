@@ -17,14 +17,10 @@ if not RESULTS_DIR.exists():
 #   You need to specify a time deadline (is milliseconds (ms)) we are allowed to negotiate before we end without agreement
 settings = {
     "agents": [
-        #{
-        #     "class": "agents.ANL2022.dreamteam109_agent.dreamteam109_agent.DreamTeam109Agent",
-        #     "parameters": {"storage_dir": "agent_storage/DreamTeam109Agent"},
-        #},
-        {
-             "class": "agents.random_agent.random_agent.RandomAgent",
-             "parameters": {"storage_dir": "agents/random_agent/random_agent.py"},
-         },
+       {
+            "class": "agents.group21_agent.group21_agent.Group21Agent",
+            "parameters": {"storage_dir": "agents/group21_agent/group21_agent.py"},
+        },
         # {
         #     "class": "agents.stupid_agent.stupid_agent.StupidAgent",
         #     "parameters": {"storage_dir": "agents/stupid_agent/stupid_agent.py"},
@@ -33,10 +29,10 @@ settings = {
         #    "class": "agents.conceder_agent.conceder_agent.ConcederAgent",
         #    "parameters": {"storage_dir": "agents/conceder_agent/conceder_agent.py"},
         #},
-        #{
-         #   "class": "agents.boulware_agent.boulware_agent.BoulwareAgent",
-          #  "parameters": {"storage_dir": "agents/boulware_agent/boulware_agent.py"},
-        #},
+        # {
+        #    "class": "agents.boulware_agent.boulware_agent.BoulwareAgent",
+        #    "parameters": {"storage_dir": "agents/boulware_agent/boulware_agent.py"},
+        # },
         {
             "class": "agents.group21_agent.group21_agent.Group21Agent",
             "parameters": {"storage_dir": "agents/group21_agent/group21_agent.py"},

@@ -340,6 +340,8 @@ class Group21Agent(DefaultParty):
         """
         Returns the utility of the given bid for us and the opponent.
         """
+        if self.opponent_model is None:
+            return (float(self.profile.getUtility(bid)), 0)
         return (float(self.profile.getUtility(bid)), self.opponent_model.get_predicted_utility(bid))
 
     def find_optimal_utility(self, offers=4, beta=.015, eta=.07) -> Bid:
@@ -374,8 +376,8 @@ class Group21Agent(DefaultParty):
         
         # If we don't have enough data, pick a bid according to the default strategy
         # Otherwise, use the derivative strategy
-        turn = len(self.opponent_model.offers)
-        if self.opponent_model is None or turn < offers:
+        #turn = len(self.opponent_model.offers)
+        if self.opponent_model is None or len(self.opponent_model.offers) < offers:
             scores = [self.score_bid_easy(bid) for bid in bids]
             idx = np.argmax(scores)
         else:
