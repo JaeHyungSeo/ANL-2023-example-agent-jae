@@ -355,7 +355,7 @@ class Group21Agent(DefaultParty):
         angle = math.atan2(sum(ys), sum(xs))
 
         # Calculate the shooting length as the average of the distances between the offer combinations
-        length = np.average([math.sqrt(x ** 2 + y ** 2) for (x, y) in zip(xs, ys)])
+        length = np.average([math.sqrt(x ** 2 + y ** 2) for (x, y) in zip(xs, ys)]) * 0.1
         
         # Extend our last bid along the shot vector
         # TODO: double check sin and cos shouldn't be swapped
