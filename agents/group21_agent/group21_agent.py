@@ -342,7 +342,7 @@ class Group21Agent(DefaultParty):
         """
         return (float(self.profile.getUtility(bid)), self.opponent_model.get_predicted_utility(bid))
 
-    def find_optimal_utility(self, offers=4, beta=.003, eta=.07) -> Bid:
+    def find_optimal_utility(self, offers=4, beta=.015, eta=.07) -> Bid:
         # Get scores of the last x offers from the opponent
         pts = [self.utility_pt(bid) for bid in self.opponent_model.offers[-offers:]]
 
@@ -363,7 +363,7 @@ class Group21Agent(DefaultParty):
         next = np.clip((last[0] + length * math.sin(angle), last[1] + length * math.cos(angle)), 0., 1.)
         return next
 
-    def find_bid(self) -> Bid:
+    def find_bid(self, alpha=.01, offers=4) -> Bid:
         # Compose a list of all possible bids
         all_bids = AllBidsList(self.profile.getDomain())
 
@@ -374,18 +374,18 @@ class Group21Agent(DefaultParty):
         
         # If we don't have enough data, pick a bid according to the default strategy
         # Otherwise, use the derivative strategy
-        if self.opponent_model is None or len(self.opponent_model.offers) < 3:
-            scores = [self.score_bid_default(bid) for bid in bids]
+        turn = len(self.opponent_model.offers)
+        if self.opponent_model is None or turn < offers:
+            scores = [self.score_bid_easy(bid) for bid in bids]
             idx = np.argmax(scores)
-            
         else:
-            optimal_utility = self.find_optimal_utility()
-            scores = [self.score_bid_derivative(bid, optimal_utility) for bid in bids]
+            optimal_utility = self.find_optimal_utility(offers=offers)
+            scores = [self.score_bid(bid, optimal_utility) for bid in bids]
             idx = np.argmin(scores)
 
         return bids[idx]
 
-    def score_bid_derivative(self, bid: Bid, optimal_utility: tuple[float]) -> float:
+    def score_bid(self, bid: Bid, optimal_utility: tuple[float]) -> float:
         """Calculate a derivative score for a bid
         
         Args:
@@ -395,32 +395,17 @@ class Group21Agent(DefaultParty):
         Returns:
             float: score - the distance between the bids. Smaller is better.
         """
-        y, x = self.utility_pt(bid) - optimal_utility
+        x, y = self.utility_pt(bid) - optimal_utility
         return math.sqrt(x ** 2 + y ** 2)
-
-    def score_bid_default(self, bid: Bid, alpha: float = 0.95, eps: float = 0.1) -> float:
-        """Calculate a default heuristic score for a bid
-
+    
+    def score_bid_easy(self, bid: Bid) -> float:
+        """Calculate a derivative score for a bid
+        
         Args:
             bid (Bid): Bid to score
-            alpha (float, optional): Trade-off factor between self interested and
-                altruistic behaviour. Defaults to 0.95.
-            eps (float, optional): Time pressure factor, balances between conceding
-                and Boulware behaviour over time. Defaults to 0.1.
 
         Returns:
-            float: score
+            float: score - the distance between the bids. Smaller is better.
         """
-        progress = self.progress.get(time() * 1000)
-
-        our_utility = float(self.profile.getUtility(bid))
-
-        time_pressure = 1.0 - progress ** (1 / eps)
-        score = alpha * time_pressure * our_utility
-
-        if self.opponent_model is not None:
-            opponent_utility = self.opponent_model.get_predicted_utility(bid)
-            opponent_score = (1.0 - alpha * time_pressure) * opponent_utility
-            score += opponent_score
-
-        return score
+        x, y = self.utility_pt(bid)
+        return x * 5 + y
